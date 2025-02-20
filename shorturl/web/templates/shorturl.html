@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>短網址轉換</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<style>
+    input:focus {
+        outline: none;
+        box-shadow: 0 0 2px #3b82f6;
+        border: 2px solid #3b82f6;
+    }
+
+    #historyContainer {
+        background-color: #f7fafc;
+        padding: 16px;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    #historyList {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+    .history-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px;
+        margin-bottom: 8px;
+        background-color: #e2e8f0;
+        border-radius: 4px;
+    }
+
+    .history-item span {
+        color: #2d3748;
+    }
+
+    .history-item .short-url {
+        font-weight: bold;
+        color: #3182ce;
+    }
+
+    .history-item .link_count {
+        color: #3182ce;
+    }
+
+    .history-item .long-url {
+        color: #2b6cb0;
+    }
+
+    .long-url,
+    .short-url {
+        white-space: nowrap;
+        max-width: 200px;
+        display: inline-block;
+        overflow-x: auto;
+    }
+</style>
+
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="w-full max-w-md bg-white p-6 rounded-lg shadow-md">
+        <h2 class="text-2xl font-bold text-center mb-4">短網址轉換器</h2>
+        <div class="flex space-x-2 mb-3">
+            <input type="text" id="longUrl" class="w-full p-2 border-gray-300 rounded-md border" placeholder="輸入長網址">
+            <button class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600" id="shortenBtn">縮短網址</button>
+        </div>
+        <div id="result" class="hidden p-3 bg-green-100 text-green-700 rounded-md"></div>
+        <div id="shortUrlContainer" class="mt-4">
+            <label for="shortUrl" class="block text-gray-700">短網址：</label>
+            <div class="flex items-center space-x-2">
+                <input type="text" id="shortUrl" class="w-full p-2 border-gray-300 rounded-md border" readonly>
+                <button id="copyBtn" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">複製</button>
+            </div>
+        </div>
+        <div id="historyContainer" class="mt-4 bg-gray-100 p-4 rounded-md shadow-md">
+            <h3 class="text-xl font-semibold mb-2">轉換記錄</h3>
+            <div id="historyList" class="overflow-y-auto" style="max-height: 200px;">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function () {
+
+            async function fetch_count() {
+                while (true) {
+                    try {
+
+                        const data = await $.ajax({
+                            url: `/get_history`,
+                            method: "GET",
+                            dataType: "json",
+                        });
+
+                        for (let k in data) {
+                            if (data.hasOwnProperty(k)) {
+                                let long = data[k]['long']
+                                let count = data[k]['count']
+                                let short = k.replace("short:", "")
+
+                                let exist = $('#historyList').find('.short-url').filter(function () {
+                                    return $(this).text() === short;
+                                });
+
+                                if (exist.length > 0) {
+                                    exist.siblings(".link_count").text(count)
+                                } else {
+                                    const h = $('<div>').addClass('history-item')
+                                        .html(`
+                                    <span class="long-url" id="long_url">${long}</span>
+                                    <span class="url short-url" id="short-url">${short}</span>
+                                    <span class="link_count" id="link_count">${count}</span>
+                                    `);
+                                    $('#historyList').append(h);
+                                }
+                            }
+                        }
+
+
+
+
+                        // let urls = $(".url").toArray()
+
+                        // for (let url of urls) {
+                        //     let short_url = $(url).text();
+
+                        //     if (short_url) {
+                        //         const data = await $.ajax({
+                        //             url: `/status/${short_url}`,
+                        //             method: "GET",
+                        //             dataType: "json",
+                        //         });
+                        //         count = data.Visit
+                        //         short = data.Link
+                        //         if ($(url).text() === short) {
+                        //             $(url).siblings('.link_count').text(count);
+                        //         }
+                        //     }
+                        // }
+                    } catch (xhr) {
+                        console.error(
+                            `AJAX request failed with status: ${xhr.status} - ${xhr.statusText}`
+                        );
+                    }
+                    await new Promise((resolve) => setTimeout(resolve, 2000));
+                }
+            }
+
+            fetch_count();
+
+            $('#shortenBtn').click(async function () {
+                let url = $('#longUrl').val().trim();
+
+                let urlPattern = /^(https?:\/\/)?([a-zA-Z0-9-]+\.)+[a-zA-Z0-9-]+(\.[a-zA-Z]{2,})?(\/[a-zA-Z0-9\-\.~!$&'()*+,;=:@%]*)*(\?[;&a-zA-Z0-9\-_+=&%@]*)?(#.*)?$/;
+
+                if (url == "") {
+                    Swal.fire({
+                        title: "欄位禁止空白",
+                        icon: 'error',
+                        confirmButtonText: "OK",
+                        timer: 2000
+                    })
+                    return
+                }
+
+                if (!urlPattern.test(url)) {
+                    Swal.fire({
+                        title: "請輸入正確格式",
+                        icon: 'error',
+                        confirmButtonText: "OK",
+                        timer: 2000
+                    })
+                    return
+                }
+
+                $.ajax({
+                    url: '/shorten',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ url: url }),
+                    success: function (r) {
+
+                        if (r.status == "error") {
+                            Swal.fire({
+                                title: "轉換失敗",
+                                text: r.message,
+                                icon: 'error',
+                                confirmButtonText: "OK",
+                            });
+                        } else if (r.status == "warning") {
+                            Swal.fire({
+                                title: "提醒",
+                                html: r.message,
+                                icon: 'warning',
+                                confirmButtonText: "OK",
+                            });
+                        } else {
+                            $("#shortUrl").val(r.message)
+                            const history = $('<div>').addClass('history-item')
+                                .html(`
+                                    <span class="long-url" id="long_url">${url}</span>
+                                    <span class="url short-url" id="short-url">${r.message}</span>
+                                    <span class="link_count" id="link_count">0</span>
+                                    `);
+
+                            $('#historyList').append(history);
+                        }
+                    },
+                    error: function (xhr, status, error) {
+                        console.error(`error: ${status}, ${error}`);
+                        Swal.fire({
+                            icon: 'error',
+                            title: '轉換失敗',
+                            text: '請稍後再試',
+                            timer: 1000
+                        });
+                    }
+                });
+            });
+
+
+            $("#copyBtn").click(function () {
+                let copy = $("#shortUrl").val();
+                if (copy) {
+                    navigator.clipboard.writeText(copy).then(function () {
+                        Swal.fire({
+                            title: "複製成功",
+                            icon: 'success',
+                            confirmButtonText: "OK",
+                            timer: 1000
+                        });
+                    }, function () {
+                        Swal.fire({
+                            title: "複製失敗",
+                            icon: 'error',
+                            confirmButtonText: "OK",
+                            timer: 1000
+                        });
+                    });
+                } else {
+                    Swal.fire({
+                        title: "無內容可複製",
+                        icon: 'info',
+                        confirmButtonText: "OK",
+                        timer: 1000
+                    });
+                }
+            });
+
+
+
+        });
+    </script>
+</body>
+
+</html>
