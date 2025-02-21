@@ -16,25 +16,46 @@
         border: 2px solid #3b82f6;
     }
 
+    .shorten_container {
+        width: 600px;
+        height: 650px;
+    }
+
+    .long-url {
+        width: 200px;
+    }
+
+    .short-url {
+        width: 100px;
+        cursor: pointer;
+    }
+
     #historyContainer {
         background-color: #f7fafc;
         padding: 16px;
         border-radius: 8px;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        height: 415px;
+    }
+
+    #shortenBtn,
+    #copyBtn {
+        width: 24%;
     }
 
     #historyList {
-        max-height: 200px;
+        max-height: 360px;
         overflow-y: auto;
     }
 
     .history-item {
         display: flex;
-        justify-content: space-between;
+        justify-content: space-around;
         padding: 8px;
         margin-bottom: 8px;
         background-color: #e2e8f0;
         border-radius: 4px;
+        height: 55px;
     }
 
     .history-item span {
@@ -55,24 +76,28 @@
     }
 
     .long-url,
-    .short-url {
+    .short-url,
+    .link_count {
         white-space: nowrap;
         max-width: 200px;
         display: inline-block;
         overflow-x: auto;
+        display: flex;
+        align-items: center;
+        justify-content: start;
     }
 </style>
 
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
-    <div class="w-full max-w-md bg-white p-6 rounded-lg shadow-md">
-        <h2 class="text-2xl font-bold text-center mb-4">短網址轉換器</h2>
+    <div class="shorten_container bg-white p-6 rounded-lg shadow-md ">
+        <h2 class="text-3xl font-bold text-center mb-4">短網址轉換器</h2>
         <div class="flex space-x-2 mb-3">
             <input type="text" id="longUrl" class="w-full p-2 border-gray-300 rounded-md border" placeholder="輸入長網址">
             <button class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600" id="shortenBtn">縮短網址</button>
         </div>
         <div id="result" class="hidden p-3 bg-green-100 text-green-700 rounded-md"></div>
         <div id="shortUrlContainer" class="mt-4">
-            <label for="shortUrl" class="block text-gray-700">短網址：</label>
+            <label for="shortUrl" class="block text-gray-700 shortUrl">短網址：</label>
             <div class="flex items-center space-x-2">
                 <input type="text" id="shortUrl" class="w-full p-2 border-gray-300 rounded-md border" readonly>
                 <button id="copyBtn" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">複製</button>
@@ -80,13 +105,38 @@
         </div>
         <div id="historyContainer" class="mt-4 bg-gray-100 p-4 rounded-md shadow-md">
             <h3 class="text-xl font-semibold mb-2">轉換記錄</h3>
-            <div id="historyList" class="overflow-y-auto" style="max-height: 200px;">
+            <div id="historyList" class="overflow-y-auto">
             </div>
         </div>
     </div>
 
     <script>
         $(document).ready(function () {
+            let timerInterval;
+
+            $(document).on("click", ".short-url", function () {
+                let copy = $(this).text().trim();
+                navigator.clipboard.writeText(copy).then(() => {
+
+                    Swal.fire({
+                        position: "top",
+                        title: "複製成功",
+                        timer: 1000,
+                        timerProgressBar: true,
+                        showConfirmButton: false,
+                        backdrop: false,
+                        didOpen: () => {
+                            const timer = Swal.getPopup().querySelector("b");
+                            timerInterval = setInterval(() => {
+                                timer.textContent = `${Swal.getTimerLeft()}`;
+                            }, 100);
+                        },
+                        willClose: () => {
+                            clearInterval(timerInterval);
+                        }
+                    })
+                })
+            })
 
             async function fetch_count() {
                 while (true) {
@@ -114,7 +164,7 @@
                                     const h = $('<div>').addClass('history-item')
                                         .html(`
                                     <span class="long-url" id="long_url">${long}</span>
-                                    <span class="url short-url" id="short-url">${short}</span>
+                                    <span class="url short-url " id="short-url">${short}</span>
                                     <span class="link_count" id="link_count">${count}</span>
                                     `);
                                     $('#historyList').append(h);
@@ -122,27 +172,6 @@
                             }
                         }
 
-
-
-
-                        // let urls = $(".url").toArray()
-
-                        // for (let url of urls) {
-                        //     let short_url = $(url).text();
-
-                        //     if (short_url) {
-                        //         const data = await $.ajax({
-                        //             url: `/status/${short_url}`,
-                        //             method: "GET",
-                        //             dataType: "json",
-                        //         });
-                        //         count = data.Visit
-                        //         short = data.Link
-                        //         if ($(url).text() === short) {
-                        //             $(url).siblings('.link_count').text(count);
-                        //         }
-                        //     }
-                        // }
                     } catch (xhr) {
                         console.error(
                             `AJAX request failed with status: ${xhr.status} - ${xhr.statusText}`

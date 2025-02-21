@@ -3,6 +3,9 @@ from redis import Redis, RedisError
 import random
 import string
 import webbrowser
+import subprocess
+import os
+import sys
 
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
@@ -16,6 +19,32 @@ def get_short_url():
         code = "".join(random.choices(char, k=8))
         if not redis_client.exists(f"{code}"):
             return code
+
+
+def start_redis():
+    try:
+        r = Redis(host="localhost", port=6379, db=0)
+        r.ping()
+        print("Redis run successfully")
+    except RedisError:
+        print("start embedded Redis server")
+
+        base_path = getattr(sys, '_MEIPASS', os.path.abspath(os.path.dirname(__file__)))
+        redis_exe = os.path.join(base_path, "redis", "redis-server")
+
+        if not os.path.exists(redis_exe):
+            print("Redis executable not found")
+            return
+        
+        if sys.platform != "win32":
+            subprocess.run(["chmod", "+x", redis_exe], check=True)
+
+        if sys.platform == "win32":
+            subprocess.Popen([redis_exe], creationflags=subprocess.CREATE_NEW_CONSOLE)
+        elif sys.platform == "darwin" or sys.platform.startswith("linux"):
+            subprocess.Popen([redis_exe, "--daemonize", "yes"])
+
+        print("Redis server started")
 
 
 @app.route("/")
@@ -105,8 +134,8 @@ def get_history():
         while True:
             cursor, keys = redis_client.scan(cursor=cursor, match="short:*", count=30)
             for key in keys:
-                count_key = key.replace("short:","")
-                long_url=redis_client.get(key)
+                count_key = key.replace("short:", "")
+                long_url = redis_client.get(key)
                 if long_url:
                     total_url[key] = {}
                     total_url[key]["long"] = long_url
@@ -125,4 +154,5 @@ def get_history():
 
 if __name__ == "__main__":
     webbrowser.open("http://127.0.0.1:5050")
+    start_redis()
     app.run(debug=False, host="0.0.0.0", port=5050, use_reloader=False)
